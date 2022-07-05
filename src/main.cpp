@@ -224,6 +224,7 @@ void loop() {
   static unsigned long lastLightOnMillis = millis();
   static uint16_t sensorSum[4] = {0, 0, 0, 0};
   static uint8_t sampleCount = 0;
+  static bool blinkUpDn = true;
   re.run();
 
 
@@ -236,7 +237,7 @@ void loop() {
     sampleCount++;
     lastSensorMillis = curMillis;
   }
-  // If enough time has passed, turn the LED off
+  // If we're in tracking mode and enough time has passed, turn the LED off
   if (calState == tracking && curMillis - lastLightOnMillis >= LIGHT_ON_MS) {
     setLed(black);
     lastLightOnMillis = curMillis;
@@ -285,8 +286,9 @@ void loop() {
     int16_t cwCc = ((sensorVal[ucw] + sensorVal[lcw]) / 2) - ((sensorVal[ucc] + sensorVal[lcc]) / 2);
     cwCc = cwCc < 0 ? +1 : cwCc > 0 ? -1 : 0;
 
-    // If we're trying to track the sun, actually make the move
+    // If we're trying to track the sun
     if (calState == tracking) {
+      // Actually make the move that gets us closer
       altAngle += upDn;
       altAngle = altAngle > ALT_MAX ? ALT_MAX : altAngle < ALT_MIN ? ALT_MIN : altAngle;
       alt.write(altAngle);
@@ -294,40 +296,18 @@ void loop() {
       azAngle = azAngle > AZ_MAX ? AZ_MAX : azAngle < AZ_MIN ? AZ_MIN : azAngle;
       az.write(azAngle);
 
-      // theCase format is four bits, dnuwnc, where d is down, u is up, w is clickwise, c is counterclockwise and n is neutral
-      int8_t theCase = ((upDn + 1) << 2) | (cwCc + 1);
+      // Blink the LED to alternate between showing blue for up, yellow down and green for clockwise, red counterclockwise
       ledcolor_t theColor;
-      switch (theCase) {
-        case 0b0000:          // cc up
-          theColor = magenta;
-          break;
-        case 0b0001:          // up
-          theColor = blue;
-          break;
-        case 0b0010:          // cw up
-          theColor = cyan;
-          break;
-        case 0b0100:          // cc
-          theColor = red;
-          break;
-        case 0b0110:          // cw
-          theColor = green;
-          break;
-        case 0b1000:          // cc dn
-          theColor = white;   // Too bad we're not tetrachromatic
-          break;
-        case 0b1001:          // dn
-          theColor = yellow;
-          break;
-        case 0b1010:          // cw dn
-          theColor = white;   // Too bad we're not tetrachromatic
-          break;
-        default:
-          theColor = black;
+      if (blinkUpDn) {
+        theColor = upDn > 0 ? yellow : upDn < 0 ? blue : white;
+      } else {
+        theColor = cwCc > 0 ? green : cwCc < 0 ? red : white;
       }
+      blinkUpDn = !blinkUpDn;
       setLed(theColor);
     }
     #ifdef DEBUG
+    // Show our work
     Serial.print(F("Alt: "));
     Serial.print(upDn == +1 ? F("Dn") : upDn == -1 ? F("Up") : F("Nc"));
     Serial.print(F(", Az: "));
